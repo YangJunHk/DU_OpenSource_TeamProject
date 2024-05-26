@@ -1,54 +1,70 @@
-# 필요한 패키지 설치
-!pip install gtts googletrans==4.0.0-rc1 hangulize
-
+import os
 from hangulize import hangulize
 from gtts import gTTS
 from googletrans import Translator
+from tkinter import Tk, Label, Entry, Button, StringVar, OptionMenu, filedialog
 
 # Translator 객체 생성
 translator = Translator()
 
-def translate_to_korean(text, src_lang='ja'):
-    """
-    입력된 텍스트를 src_lang에서 한국어로 번역합니다.
-    
-    :param text: 번역할 텍스트
-    :param src_lang: 원본 텍스트의 언어 (기본값은 일본어)
-    :return: 번역된 텍스트 (한국어)
-    """
+# 번역 및 발음 생성 함수
+def translate_to_korean(text, src_lang):
     translation = translator.translate(text, src=src_lang, dest='ko')
     return translation.text
 
-def text_to_korean_pronunciation(text):
-    """
-    한국어 텍스트의 발음을 mp3 파일로 저장합니다.
-    
-    :param text: 발음을 생성할 텍스트 (한국어)
-    """
+def text_to_korean_pronunciation(text, filepath):
     tts = gTTS(text, lang='ko')
-    tts.save("korean_pronunciation.mp3")
-    print("한국어 발음 파일이 'korean_pronunciation.mp3'로 저장되었습니다.")
+    tts.save(filepath)
+    print(f"한국어 발음 파일이 '{filepath}'로 저장되었습니다.")
 
 def japanese_to_korean_pronunciation(text):
-    """
-    일본어 텍스트를 한글 외래어 발음으로 변환합니다.
-    
-    :param text: 변환할 일본어 텍스트
-    :return: 한글 외래어 발음
-    """
     return hangulize(text, 'jpn')
 
-if __name__ == "__main__":
-    # 사용자 입력 받기
-    foreign_text = input("번역할 일본어 텍스트를 입력하세요: ")
+def save_pronunciation():
+    filepath = filedialog.asksaveasfilename(defaultextension=".mp3", filetypes=[("MP3 files", "*.mp3")])
+    if filepath:
+        text_to_korean_pronunciation(translated_text.get(), filepath)
 
-    # 번역
-    translated_text = translate_to_korean(foreign_text)
-    print(f"번역된 텍스트: {translated_text}")
+def translate_and_display():
+    try:
+        text = input_text.get()
+        src_lang = language_var.get()
+        translated = translate_to_korean(text, src_lang)
+        translated_text.set(translated)
+        pronunciation = japanese_to_korean_pronunciation(text)
+        korean_pronunciation.set(pronunciation)
+    except Exception as e:
+        translated_text.set("번역 중 오류가 발생했습니다.")
+        korean_pronunciation.set(str(e))
 
-    # 한국어 발음 변환 및 저장
-    text_to_korean_pronunciation(translated_text)
+# GUI 설정
+root = Tk()
+root.title("번역 및 발음 변환기")
 
-    # 일본어를 한글 외래어 발음으로 변환
-    korean_pronunciation = japanese_to_korean_pronunciation(foreign_text)
-    print(f"한글 외래어 발음: {korean_pronunciation}")
+# 입력 텍스트 레이블과 입력 상자
+Label(root, text="번역할 텍스트:").grid(row=0, column=0, padx=10, pady=10)
+input_text = StringVar()
+Entry(root, textvariable=input_text, width=50).grid(row=0, column=1, padx=10, pady=10)
+
+# 언어 선택 메뉴
+Label(root, text="원본 언어:").grid(row=1, column=0, padx=10, pady=10)
+language_var = StringVar(value='ja')
+OptionMenu(root, language_var, 'ja').grid(row=1, column=1, padx=10, pady=10)
+
+# 번역된 텍스트 레이블
+Label(root, text="번역된 텍스트:").grid(row=2, column=0, padx=10, pady=10)
+translated_text = StringVar()
+Label(root, textvariable=translated_text, wraplength=400).grid(row=2, column=1, padx=10, pady=10)
+
+# 한글 외래어 발음 레이블
+Label(root, text="한글 외래어 발음:").grid(row=3, column=0, padx=10, pady=10)
+korean_pronunciation = StringVar()
+Label(root, textvariable=korean_pronunciation, wraplength=400).grid(row=3, column=1, padx=10, pady=10)
+
+# 번역 및 발음 변환 버튼
+Button(root, text="번역 및 발음 변환", command=translate_and_display).grid(row=4, column=0, columnspan=2, pady=10)
+
+# 발음 파일 저장 버튼
+Button(root, text="발음 파일 저장", command=save_pronunciation).grid(row=5, column=0, columnspan=2, pady=10)
+
+root.mainloop()
