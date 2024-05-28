@@ -1,15 +1,13 @@
 import os
+import json
 import sys
 
 # 현재 파일의 디렉토리 경로를 가져옵니다.
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
 # PYTHONPATH 설정
-sys.path.append(os.path.join(current_dir, 'Python', 'hangulize'))
-sys.path.append(os.path.join(current_dir, 'Python', 'openvoice'))
-
-# 환경 변수가 설정되었는지 확인하는 코드 (디버깅 용)
-print("PYTHONPATH:", sys.path)
+sys.path.append(os.path.join(current_dir, 'hangulize'))
+sys.path.append(os.path.join(current_dir, 'openvoice'))
 
 import torch
 from openvoice import se_extractor
@@ -17,7 +15,8 @@ from openvoice.api import BaseSpeakerTTS, ToneColorConverter
 from hangulize import hangulize
 from gtts import gTTS
 from googletrans import Translator
-from tkinter import Tk, Label, Entry, Button, StringVar, OptionMenu, filedialog
+from hgtk.text import compose, decompose
+from tkinter import Tk, Label, Entry, Button, StringVar, OptionMenu, filedialog, Toplevel, Text, Scrollbar, VERTICAL, END
 
 # ffmpeg 경로 설정
 ffmpeg_path = "C:\\Program Files (x86)\\ffmpeg\\bin"
@@ -77,6 +76,52 @@ def text_to_korean_pronunciation(text, filepath):
 def japanese_to_korean_pronunciation(text):
     return hangulize(text, 'jpn')
 
+def korean_pronunciation_romanization(text):
+    """
+    한국어 텍스트를 로마자 발음 표기법으로 변환합니다.
+    
+    :param text: 변환할 한국어 텍스트
+    :return: 로마자 발음 표기
+    """
+    decomposed = decompose(text)
+    romanized = []
+
+    # 한글 자모를 로마자로 변환
+    hangul_to_roman = {
+        'ㄱ': 'g', 'ㄲ': 'kk', 'ㄴ': 'n', 'ㄷ': 'd', 'ㄸ': 'tt', 'ㄹ': 'r', 'ㅁ': 'm', 'ㅂ': 'b', 'ㅃ': 'pp',
+        'ㅅ': 's', 'ㅆ': 'ss', 'ㅇ': '', 'ㅈ': 'j', 'ㅉ': 'jj', 'ㅊ': 'ch', 'ㅋ': 'k', 'ㅌ': 't', 'ㅍ': 'p', 'ㅎ': 'h',
+        'ㅏ': 'a', 'ㅐ': 'ae', 'ㅑ': 'ya', 'ㅒ': 'yae', 'ㅓ': 'eo', 'ㅔ': 'e', 'ㅕ': 'yeo', 'ㅖ': 'ye', 'ㅗ': 'o',
+        'ㅘ': 'wa', 'ㅙ': 'wae', 'ㅚ': 'oe', 'ㅛ': 'yo', 'ㅜ': 'u', 'ㅝ': 'wo', 'ㅞ': 'we', 'ㅟ': 'wi', 'ㅠ': 'yu',
+        'ㅡ': 'eu', 'ㅢ': 'ui', 'ㅣ': 'i'
+    }
+
+    for char in decomposed:
+        romanized.append(hangul_to_roman.get(char, char))
+    
+    return ''.join(romanized)
+
+def save_translation_history(history):
+    """
+    번역 히스토리를 JSON 파일로 저장합니다.
+    
+    :param history: 번역 히스토리 딕셔너리
+    """
+    with open("translation_history.json", "w") as file:
+        json.dump(history, file)
+
+def load_translation_history():
+    """
+    JSON 파일에서 번역 히스토리를 로드합니다.
+    
+    :return: 번역 히스토리 딕셔너리
+    """
+    if os.path.exists("translation_history.json"):
+        with open("translation_history.json", "r") as file:
+            history = json.load(file)
+            return history
+    else:
+        return {}
+
 def save_pronunciation():
     filepath = filedialog.asksaveasfilename(defaultextension=".mp3", filetypes=[("MP3 files", "*.mp3")])
     if filepath:
@@ -90,6 +135,15 @@ def translate_and_display():
         translated_text.set(translated)
         pronunciation = japanese_to_korean_pronunciation(text)
         korean_pronunciation.set(pronunciation)
+        
+        # 번역된 한국어 텍스트를 로마자 발음 표기법으로 변환
+        romanized_pronunciation = korean_pronunciation_romanization(translated)
+        romanized_text.set(romanized_pronunciation)
+        
+        # 히스토리에 번역 내용 추가
+        translation_history[text] = translated
+        save_translation_history(translation_history)
+        
     except Exception as e:
         translated_text.set("번역 중 오류가 발생했습니다.")
         korean_pronunciation.set(str(e))
@@ -127,9 +181,26 @@ def synthesize_speech():
         translated_text.set("음성 합성 중 오류가 발생했습니다.")
         korean_pronunciation.set(str(e))
 
+def view_history():
+    history_window = Toplevel(root)
+    history_window.title("번역 히스토리")
+    
+    scrollbar = Scrollbar(history_window, orient=VERTICAL)
+    history_text = Text(history_window, wrap="word", yscrollcommand=scrollbar.set)
+    scrollbar.config(command=history_text.yview)
+    scrollbar.pack(side="right", fill="y")
+    history_text.pack(side="left", fill="both", expand=True)
+    
+    history_text.insert(END, "번역 히스토리:\n")
+    for original, translated in translation_history.items():
+        history_text.insert(END, f"{original} -> {translated}\n")
+
 # GUI 설정
 root = Tk()
 root.title("번역 및 발음 변환기")
+
+# 이전 번역 히스토리 로드
+translation_history = load_translation_history()
 
 # 입력 텍스트 레이블과 입력 상자
 Label(root, text="번역할 텍스트:").grid(row=0, column=0, padx=10, pady=10)
@@ -151,13 +222,21 @@ Label(root, text="한글 외래어 발음:").grid(row=3, column=0, padx=10, pady
 korean_pronunciation = StringVar()
 Label(root, textvariable=korean_pronunciation, wraplength=400).grid(row=3, column=1, padx=10, pady=10)
 
+# 로마자 발음 표기 레이블
+Label(root, text="로마자 발음 표기:").grid(row=4, column=0, padx=10, pady=10)
+romanized_text = StringVar()
+Label(root, textvariable=romanized_text, wraplength=400).grid(row=4, column=1, padx=10, pady=10)
+
 # 번역 및 발음 변환 버튼
-Button(root, text="번역 및 발음 변환", command=translate_and_display).grid(row=4, column=0, columnspan=2, pady=10)
+Button(root, text="번역 및 발음 변환", command=translate_and_display).grid(row=5, column=0, columnspan=2, pady=10)
 
 # 음성 합성 버튼
-Button(root, text="음성 합성", command=synthesize_speech).grid(row=5, column=0, columnspan=2, pady=10)
+Button(root, text="음성 합성", command=synthesize_speech).grid(row=6, column=0, columnspan=2, pady=10)
 
 # 발음 파일 저장 버튼
-Button(root, text="발음 파일 저장", command=save_pronunciation).grid(row=6, column=0, columnspan=2, pady=10)
+Button(root, text="발음 파일 저장", command=save_pronunciation).grid(row=7, column=0, columnspan=2, pady=10)
+
+# 히스토리 보기 버튼
+Button(root, text="히스토리 보기", command=view_history).grid(row=8, column=0, columnspan=2, pady=10)
 
 root.mainloop()
