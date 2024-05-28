@@ -1,6 +1,5 @@
-# 필요한 패키지 설치
-!pip install gtts googletrans==4.0.0-rc1 hangulize
-
+import os
+import json
 from hangulize import hangulize
 from gtts import gTTS
 from googletrans import Translator
@@ -38,7 +37,32 @@ def japanese_to_korean_pronunciation(text):
     """
     return hangulize(text, 'jpn')
 
+def save_translation_history(history):
+    """
+    번역 히스토리를 JSON 파일로 저장합니다.
+    
+    :param history: 번역 히스토리 딕셔너리
+    """
+    with open("translation_history.json", "w") as file:
+        json.dump(history, file)
+
+def load_translation_history():
+    """
+    JSON 파일에서 번역 히스토리를 로드합니다.
+    
+    :return: 번역 히스토리 딕셔너리
+    """
+    if os.path.exists("translation_history.json"):
+        with open("translation_history.json", "r") as file:
+            history = json.load(file)
+            return history
+    else:
+        return {}
+
 if __name__ == "__main__":
+    # 이전 번역 히스토리 로드
+    translation_history = load_translation_history()
+
     # 사용자 입력 받기
     foreign_text = input("번역할 일본어 텍스트를 입력하세요: ")
 
@@ -46,9 +70,18 @@ if __name__ == "__main__":
     translated_text = translate_to_korean(foreign_text)
     print(f"번역된 텍스트: {translated_text}")
 
+    # 히스토리에 번역 내용 추가
+    translation_history[foreign_text] = translated_text
+    save_translation_history(translation_history)
+
     # 한국어 발음 변환 및 저장
     text_to_korean_pronunciation(translated_text)
 
     # 일본어를 한글 외래어 발음으로 변환
     korean_pronunciation = japanese_to_korean_pronunciation(foreign_text)
     print(f"한글 외래어 발음: {korean_pronunciation}")
+
+    # 사용자가 번역 히스토리를 확인할 수 있도록 출력
+    print("\n번역 히스토리:")
+    for idx, (original, translated) in enumerate(translation_history.items(), start=1):
+        print(f"{idx}. {original} -> {translated}")
